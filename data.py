@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import os
+
 # Para la pasiva filtrar los últimos precios
 # Para el primer año de activa, utilizar precios diarios
 # a partir del 2021, se empieza el rebalanceo 
@@ -45,14 +46,15 @@ t = t_repetidos.tolist()
 file_data = pd.read_csv("files/NAFTRAC_20200131.csv", skiprows =2)
 
 # Pesos iniciales
-weights_in = file_data.iloc[:-1,0:4:3]
+weights1 = file_data.iloc[:-1,0:4:3]
+weights_in2 = file_data.iloc[:-1,0:4:3]
 
 # Eliminar Tickers que no se repiten
 for i in t_no:
-    weights_in = weights_in[(weights_in.Ticker != i)]   
+    weights1 = weights1[(weights1.Ticker != i)]   
 
 # Tickers extra a eliminar "KOFL", "KOFUBL", "USD", "BSMXB","NMKA"
-weights1 = weights_in[(weights_in.Ticker != 'KOFL') & (weights_in.Ticker != 'KOFUBL')]
+weights1 = weights1[(weights1.Ticker != 'KOFL') & (weights1.Ticker != 'KOFUBL') & (weights1.Ticker != 'MXN')]
 
 weights1.sort_values(by = 'Ticker',inplace=True)
 
@@ -72,11 +74,10 @@ start = '2020-01-31'
 end = '2022-07-29'
 data = yf.download(tickers = Tickers, start = start, end = end, interval = '1d')
 data_p = data['Close'].dropna(axis=0)
-#%%
+#%% Precios Iniciales INV PASIVA
 
 precio_inicial = data_p.iloc[0]
-#%%
-# Rendimientos Logaritmicos
+#%% Rendimientos Logaritmicos
 rend1 = np.log(data_p/data_p.shift(1)).dropna()
 
 Retornos1 = rend1.mean()
@@ -84,22 +85,63 @@ Sigma1 = rend1.cov()
 
 
 #%% Section daily data Active Investment
+start = '2020-01-31'
+end = '2022-07-29'
 data_act_d = yf.download(tickers = Tickers, start = start, end= end, interval='1d')
 data_act_closes = data_act_d['Close'].dropna(axis=0)
 #%%
 docs = os.listdir(os.getcwd()+"/files")
 
-dates = [doc[8:12] + "-"+ doc[12:14] + "-" + doc[14:16] for doc in docs]
-
+dates = [x[8:12] + "-"+ x[12:14] + "-" + x[14:16] for x in docs]
+#%% se cambio la fecha manualmente de 2022-07-29 a 2022-07-28
 data_rend_closes = data_act_closes.pct_change().dropna()
 closes_rend_dates = data_rend_closes[np.roll(data_rend_closes.index.isin(dates),-1)]
 ### data corresponding to end of month 
 data_M = data_act_closes.loc[dates,:]
 
+#%% Constantes
+k = 1000000 #capital de 1 millon
+#CASH = "KOFL", "KOFUBL", "USD", "BSMXB","NMKA" (solo tienen ponderacion inicial "KOFUBL" y  "BSMXB")
+cash = k*weights_in2.iloc[10,1]/100+k*weights_in2.iloc[34,1]/100
 
 
-#%% Section constants
+#%%
+def inv_pasive(prices:"dataframe with prices", weights:"vector with weights", cash:"amount of cash", k:"capital inicial", dates:'vector de fechas'):
+    """
+    Function that calculates the pasive investment, take 4 inputs and returns a table with the result of the investment
+    """
+    posturas_d = weights*k #Posturas en dinero
+    posturas_t = (posturas_d/prices.iloc[0,:]).round(0) #Posturas en titulos
+    
+    for i in dates:
+        p_inicial = pd.DataFrame()
+        p_inicial['posturas_d'] = prices[i] * posturas_t
+    return p_inicial
 
-rf = 0.0429/252
-capital = 1000000
-cash = capital*weights1.iloc[34,1]/100+capital*weights1.iloc[10,1]/100+capital*weights1.iloc[32,1]/100
+inv_pasive(data_M, pesos, cash, k,dates)
+
+#%%
+    cash = cash-sum([comission(posturas_t[i],prices.iloc[0,i]) for i in range(len(posturas_t))]) # comisiones por movimientos
+    amount = [(posturas_t.to_numpy()).dot(prices.iloc[i,:].to_numpy()) for i in range(len(prices))]
+    out = pd.DataFrame(index = prices.index,columns= ['Capital'],data = amount)
+    out['Capital'] = out.Capital#correction with the cash 
+    return out
+
+#def tabla_rend(data:"dataframe with capital"):
+#    data['rend'] =data.Capital.pct_change().fillna(0).round(6)
+#    data['rend_acum']= 100*((data.rend+1).cumprod()-1).round(6)
+#    data['rend'] = 100*data.rend
+#    return data
+
+
+
+comission = lambda securitie,price: securitie*price*0.00125
+
+
+
+
+
+
+
+
+
