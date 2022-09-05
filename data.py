@@ -91,13 +91,16 @@ dates = [x[8:12] + "-"+ x[12:14] + "-" + x[14:16] for x in docs]
 dates.sort()
 #%% se cambio la fecha manualmente de 2022-07-29 a 2022-07-28
 dates[-1] = '2022-07-28'
-### data corresponding to end of month 
+# data correspondiente al final de cada mes 
 data_mensual = data_p.loc[dates,:]
 
 #%% Constantes
 k = 1000000 #capital de 1 millon
 #CASH = "KOFL", "KOFUBL", "USD", "BSMXB","NMKA" (solo tienen ponderacion inicial "KOFUBL" y  "BSMXB")
 cash = k*weights_in2.iloc[10,1]/100+k*weights_in2.iloc[34,1]/100
+
+
+
 
 #%% INVERSION PASIVA
 
@@ -132,50 +135,52 @@ def rend_pasiva(capital:'capital por mes(df)'):
 tab = rend_pasiva(pasiva)
 
 #%% INVERSION ACTIVA
-
-#minimizar el SHARPE
-# Calcular los rendimientos
-rend_closes = data_mensual.pct_change().dropna()
-
-# Resumen en base anual
-annual_ret_summary = pd.DataFrame({'Media': 252 * rend_closes.mean(), 'Vol': np.sqrt(252) * rend_closes.std()})
-#%%
-#Matriz de correlacion 
-corr = rend_closes.corr()
-
-## Construcción de parámetros
-# 1. Sigma: matriz de varianza-covarianza Sigma = S.dot(corr).dot(S)
-S = np.diag(annual_ret_summary.T.loc['Vol'].values)
-Sigma = S.dot(corr).dot(S)
-# 2. Eind: rendimientos esperados activos individuales
-Eind = annual_ret_summary.T.loc['Media'].values
-rf = 0.0775
-
-#%% fun min sharp
+# funcion para portafolio efciente maximizando sharpe
 from scipy.optimize import minimize 
 
-def menos(w, Eind, rf, Sigma):
-    E_port = Eind.T.dot(w)
-    s_port = np.var(w, Sigma)**0.5
-    RS = (E_port - rf) / s_port
-    return -RS
-#%%
-# Número de activos
-N = len(Eind)
-# Dato inicial
-w0 = np.ones(N) / N
-# Cotas de las variables
-bnds = ((0, 1), ) * N
-# Restricciones
-cons = {'type': 'eq', 'fun': lambda w: w.sum() - 1}
-#%%
-# Portafolio EMV
-emv = minimize(fun=menos,
-               x0=w0,
-               args=(Eind, rf, Sigma),
-               bounds=bnds,
-               constraints=cons)
+#%% Portafolio EMV
+def port_eficiente(data:'data mensual',ind: "list of index"):
+    rend_closes = data.pct_change().dropna() # Calcular los rendimientos
+    # Resumen en base anual
+    annual_ret_summary = pd.DataFrame({'Media': 252 * rend_closes.mean(), 'Vol': np.sqrt(252) * rend_closes.std()})
+    corr = rend_closes.corr() #Matriz de correlacion 
+    ## Construcción de parámetros
+    # 1. Sigma: matriz de varianza-covarianza Sigma = S.dot(corr).dot(S)
+    S = np.diag(annual_ret_summary.T.loc['Vol'].values)
+    Sigma = S.dot(corr).dot(S)
+    # 2. Eind: rendimientos esperados activos individuales
+    Eind = annual_ret_summary.T.loc['Media'].values
+    rf = 0.0775
+    N = len(Eind) # Número de activos
+    w0 = np.ones(N) / N# Dato inicial
+    bnds = ((0, 1), ) * N # Cotas de las variables
+    cons = {'type': 'eq', 'fun': lambda w: w.sum() - 1} # Restricciones
+    varianza = lambda w, Sigma: w.T.dot(Sigma).dot(w)
+    rendimiento = lambda w, r: w.dot(r)
+    maxi = lambda w,Eind,rf,Sigma: -(rendimiento(w,Eind)-rf)/ varianza(w,Sigma)**0.5
+    emv = minimize(fun=maxi,
+                   x0=w0,
+                   args=(Eind, rf, Sigma),
+                   bounds=bnds,
+                   constraints=cons)
+    w_emv = emv.x
+    df_pesos = pd.DataFrame(index =ind, columns = ['Peso %'], data = w_emv*100)
+    df_pesos_emv = df_pesos.loc[df_pesos['Peso %']>0,:]
+    return df_pesos_emv
 
-#%%
-# Pesos, rendimiento y riesgo del portafolio EMV
-w_emv = emv.x
+# Pesos portafolio eficiente 
+pesos_emv = port_eficiente(data_p, Tickers)
+
+
+
+
+
+
+
+
+
+
+
+
+
+

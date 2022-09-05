@@ -8,7 +8,7 @@ Created on Sun Sep  4 02:24:53 2022
 
 import pandas as pd
 import numpy as np
-
+import data as dt
 #%% INVERSION PASIVA
 
 def inv_pasive(prices:"precios mensuales(df)", weights: "pesos iniciales(array)", cash: "cash(int)", k: "capital inicial", dates: "fechas mensuales(lista)"):
@@ -27,7 +27,6 @@ def inv_pasive(prices:"precios mensuales(df)", weights: "pesos iniciales(array)"
     cap_men[0] = cap_men[0]+r #sumar el cash restante al primer mes (despues de pagarlas)
     df_capital = pd.DataFrame(index = prices.index, columns = ['capital'],data = cap_men)
     return df_capital
-#pasiva = inv_pasive(data_mensual, pesos, cash, k, dates)
 
 def rend_pasiva(capital:'capital por mes(df)'):
     '''
@@ -39,7 +38,15 @@ def rend_pasiva(capital:'capital por mes(df)'):
     capital['rend'] = 100*capital.rend
     return capital
 
-#tab = rend_pasiva(pasiva)
 
-#%% INVERSION ACTIVA
+#%% INV ACTIVA
+
+# funcion para portafolio efciente maximizando sharpe
+
+
+
+
+
+
+
 
