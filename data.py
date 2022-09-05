@@ -58,7 +58,6 @@ weights1 = weights1[(weights1.Ticker != 'KOFL') & (weights1.Ticker != 'KOFUBL') 
 
 weights1.sort_values(by = 'Ticker',inplace=True)
 
-#%%
 # Pasar pesos de porcentajes a decimales
 #weights1.loc['Peso (%)',:] = weights1["Peso (%)"]/100
 weights1["Peso (%)"] = weights1["Peso (%)"]/ 100
@@ -74,74 +73,64 @@ start = '2020-01-31'
 end = '2022-07-29'
 data = yf.download(tickers = Tickers, start = start, end = end, interval = '1d')
 data_p = data['Close'].dropna(axis=0)
-#%% Precios Iniciales INV PASIVA
 
-precio_inicial = data_p.iloc[0]
 #%% Rendimientos Logaritmicos
 rend1 = np.log(data_p/data_p.shift(1)).dropna()
 
 Retornos1 = rend1.mean()
 Sigma1 = rend1.cov()
 
-
-#%% Section daily data Active Investment
-start = '2020-01-31'
-end = '2022-07-29'
+# Section daily data Active Investment
 data_act_d = yf.download(tickers = Tickers, start = start, end= end, interval='1d')
 data_act_closes = data_act_d['Close'].dropna(axis=0)
 #%%
 docs = os.listdir(os.getcwd()+"/files")
 
 dates = [x[8:12] + "-"+ x[12:14] + "-" + x[14:16] for x in docs]
+
+dates.sort()
 #%% se cambio la fecha manualmente de 2022-07-29 a 2022-07-28
-data_rend_closes = data_act_closes.pct_change().dropna()
-closes_rend_dates = data_rend_closes[np.roll(data_rend_closes.index.isin(dates),-1)]
+dates[-1] = '2022-07-28'
 ### data corresponding to end of month 
-data_M = data_act_closes.loc[dates,:]
+data_mensual = data_p.loc[dates,:]
 
 #%% Constantes
 k = 1000000 #capital de 1 millon
 #CASH = "KOFL", "KOFUBL", "USD", "BSMXB","NMKA" (solo tienen ponderacion inicial "KOFUBL" y  "BSMXB")
 cash = k*weights_in2.iloc[10,1]/100+k*weights_in2.iloc[34,1]/100
 
+#%% INVERSION PASIVA
 
-#%%
-def inv_pasive(prices:"dataframe with prices", weights:"vector with weights", cash:"amount of cash", k:"capital inicial", dates:'vector de fechas'):
+def inv_pasive(prices:"precios mensuales(df)", weights: "pesos iniciales(array)", cash: "cash", k: "capital inicial", dates: "fechas mensuales(lista)"):
     """
-    Function that calculates the pasive investment, take 4 inputs and returns a table with the result of the investment
+    Esta funcion calcula el capital restante por mes, despues de los movimientos en el precio de cada activo.
     """
     posturas_d = weights*k #Posturas en dinero
     posturas_t = (posturas_d/prices.iloc[0,:]).round(0) #Posturas en titulos
-    
-    for i in dates:
-        p_inicial = pd.DataFrame()
-        p_inicial['posturas_d'] = prices[i] * posturas_t
-    return p_inicial
+    p_inicial = pd.DataFrame()
+    p_inicial['Titulos'] = posturas_t
+    p_inicial['Posturas $'] = posturas_d
+    comision = (p_inicial['Titulos']*0.00125*prices.iloc[0,:]) 
+    c = comision.sum() #comisiones total
+    r = cash - c #cash restante despues de comisiones
+    cap_men = [(posturas_t.to_numpy()).dot(prices.loc[i,:].to_numpy()) for i in dates]
+    cap_men[0] = cap_men[0]+r #sumar el cash restante al primer mes (despues de pagarlas)
+    df_capital = pd.DataFrame(index = prices.index, columns = ['capital'],data = cap_men)
+    return df_capital
+pasiva = inv_pasive(data_mensual, pesos, cash, k, dates)
 
-inv_pasive(data_M, pesos, cash, k,dates)
+def rend_pasiva(capital:'capital por mes(df)'):
+    '''
+    Esta función completa el df realizado en la función inv_pasive, con rendimientos
+    simples y acumulados.
+    '''
+    capital['rend'] = capital.pct_change().fillna(0).round(4)
+    capital['rend_acum'] = 100*((capital.rend+1).cumprod()-1).round(4)
+    capital['rend'] = 100*capital.rend
+    return capital
 
-#%%
-    cash = cash-sum([comission(posturas_t[i],prices.iloc[0,i]) for i in range(len(posturas_t))]) # comisiones por movimientos
-    amount = [(posturas_t.to_numpy()).dot(prices.iloc[i,:].to_numpy()) for i in range(len(prices))]
-    out = pd.DataFrame(index = prices.index,columns= ['Capital'],data = amount)
-    out['Capital'] = out.Capital#correction with the cash 
-    return out
+tab = rend_pasiva(pasiva)
 
-#def tabla_rend(data:"dataframe with capital"):
-#    data['rend'] =data.Capital.pct_change().fillna(0).round(6)
-#    data['rend_acum']= 100*((data.rend+1).cumprod()-1).round(6)
-#    data['rend'] = 100*data.rend
-#    return data
-
-
-
-comission = lambda securitie,price: securitie*price*0.00125
-
-
-
-
-
-
-
+#%% INVERSION ACTIVA
 
 

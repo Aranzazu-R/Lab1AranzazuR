@@ -6,39 +6,37 @@ Created on Sun Sep  4 02:24:53 2022
 @author: charlotte
 """
 
-#%%INVERSION PASIVA
-k = 1000000
-#el 31 de enero de 2020 inicia la inversion con los precios iniciales (no olvidar considerar el cash)
-#Posturas = Multiplicar cada peso (en decimales) por el capital 
-#Titulos = dividir posturas / precios
-
 import pandas as pd
 import numpy as np
 
+#%% INVERSION PASIVA
 
-    
-def inv_pasive(prices:"dataframe with prices", weights:"vector with weights", cash:"amount of cash", k:"capital inicial", dates:'vector de fechas'):
+def inv_pasive(prices:"precios mensuales(df)", weights: "pesos iniciales(array)", cash: "cash(int)", k: "capital inicial", dates: "fechas mensuales(lista)"):
     """
-    Function that calculates the pasive investment, take 4 inputs and returns a table with the result of the investment
+    Esta funcion calcula el capital restante por mes, despues de los movimientos en el precio de cada activo.
     """
-    p_inicial = []
     posturas_d = weights*k #Posturas en dinero
     posturas_t = (posturas_d/prices.iloc[0,:]).round(0) #Posturas en titulos
-    
-    for date in dates:
-        p_inicial['posturas_d'] = prices['date'] * posturas_t
-    cash = cash-sum([comission(posturas_t[i],prices.iloc[0,i]) for i in range(len(posturas_t))]) # comisiones por movimientos
-    amount = [(posturas_t.to_numpy()).dot(prices.iloc[i,:].to_numpy()) for i in range(len(prices))]
-    out = pd.DataFrame(index = prices.index,columns= ['Capital'],data = amount)
-    out['Capital'] = out.Capital#correction with the cash 
-    return out
+    p_inicial = pd.DataFrame()
+    p_inicial['Titulos'] = posturas_t
+    p_inicial['Posturas $'] = posturas_d
+    comision = (p_inicial['Titulos']*0.00125*prices.iloc[0,:]) 
+    c = comision.sum() #comisiones total
+    r = cash - c #cash restante despues de comisiones
+    cap_men = [(posturas_t.to_numpy()).dot(prices.loc[i,:].to_numpy()) for i in dates]
+    cap_men[0] = cap_men[0]+r #sumar el cash restante al primer mes (despues de pagarlas)
+    df_capital = pd.DataFrame(index = prices.index, columns = ['capital'],data = cap_men)
+    return df_capital
+#pasiva = inv_pasive(data_mensual, pesos, cash, k, dates)
 
-#def tabla_rend(data:"dataframe with capital"):
-#    data['rend'] =data.Capital.pct_change().fillna(0).round(6)
-#    data['rend_acum']= 100*((data.rend+1).cumprod()-1).round(6)
-#    data['rend'] = 100*data.rend
-#    return data
+def rend_pasiva(capital:'capital por mes(df)'):
+    '''
+    Esta función completa el df realizado en la función inv_pasive, con rendimientos
+    simples y acumulados.
+    '''
+    capital['rend'] = capital.pct_change().fillna(0).round(4)
+    capital['rend_acum'] = 100*((capital.rend+1).cumprod()-1).round(4)
+    capital['rend'] = 100*capital.rend
+    return capital
 
-
-
-comission = lambda securitie,price: securitie*price*0.00125
+#tab = rend_pasiva(pasiva)
