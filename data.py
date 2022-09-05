@@ -133,4 +133,49 @@ tab = rend_pasiva(pasiva)
 
 #%% INVERSION ACTIVA
 
+#minimizar el SHARPE
+# Calcular los rendimientos
+rend_closes = data_mensual.pct_change().dropna()
 
+# Resumen en base anual
+annual_ret_summary = pd.DataFrame({'Media': 252 * rend_closes.mean(), 'Vol': np.sqrt(252) * rend_closes.std()})
+#%%
+#Matriz de correlacion 
+corr = rend_closes.corr()
+
+## Construcción de parámetros
+# 1. Sigma: matriz de varianza-covarianza Sigma = S.dot(corr).dot(S)
+S = np.diag(annual_ret_summary.T.loc['Vol'].values)
+Sigma = S.dot(corr).dot(S)
+# 2. Eind: rendimientos esperados activos individuales
+Eind = annual_ret_summary.T.loc['Media'].values
+rf = 0.0775
+
+#%% fun min sharp
+from scipy.optimize import minimize 
+
+def menos(w, Eind, rf, Sigma):
+    E_port = Eind.T.dot(w)
+    s_port = np.var(w, Sigma)**0.5
+    RS = (E_port - rf) / s_port
+    return -RS
+#%%
+# Número de activos
+N = len(Eind)
+# Dato inicial
+w0 = np.ones(N) / N
+# Cotas de las variables
+bnds = ((0, 1), ) * N
+# Restricciones
+cons = {'type': 'eq', 'fun': lambda w: w.sum() - 1}
+#%%
+# Portafolio EMV
+emv = minimize(fun=menos,
+               x0=w0,
+               args=(Eind, rf, Sigma),
+               bounds=bnds,
+               constraints=cons)
+
+#%%
+# Pesos, rendimiento y riesgo del portafolio EMV
+w_emv = emv.x

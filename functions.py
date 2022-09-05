@@ -40,3 +40,6 @@ def rend_pasiva(capital:'capital por mes(df)'):
     return capital
 
 #tab = rend_pasiva(pasiva)
+
+#%% INVERSION ACTIVA
+
