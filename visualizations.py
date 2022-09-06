@@ -17,4 +17,4 @@ def returns_plot(table_returns):
 
 #rend_men_p = dt.rend_closes.pct_change().dropna()
 
-a = dt.rend_closes
+#a = dt.rend_closes
