@@ -93,6 +93,8 @@ dates.sort()
 dates[-1] = '2022-07-28'
 # data correspondiente al final de cada mes 
 data_mensual = data_p.loc[dates,:]
+rend_closes = data_p.pct_change().dropna()
+closes_rend_dates = rend_closes[np.roll(rend_closes.index.isin(dates),-1)]
 
 #%% Constantes
 k = 1000000 #capital de 1 millon
@@ -138,7 +140,7 @@ tab = rend_pasiva(pasiva)
 # funcion para portafolio efciente maximizando sharpe
 from scipy.optimize import minimize 
 
-#%% Portafolio EMV
+# Portafolio EMV
 def port_eficiente(data:'data mensual',ind: "list of index"):
     rend_closes = data.pct_change().dropna() # Calcular los rendimientos
     # Resumen en base anual
@@ -172,15 +174,83 @@ def port_eficiente(data:'data mensual',ind: "list of index"):
 pesos_emv = port_eficiente(data_p, Tickers)
 
 
+#%%
+def inv_active(prices:"dataframe with prices", weights:"vector with weights",rendi_d:"dataframe with daily returns", k:"initial amount of money"):
+    """
+    Function that calculates the pasive investment, take 4 inputs and returns a table with the result of the investment
+    """
+    ##### calculations of the initial positions
+    cash = 1000000 # cash to use in purchases
+    com = 0 # commision quantity
+    comission = lambda titles,price: titles*price*0.00125
+    num_titles = np.zeros(len(weights)) #inicializar vector de titulos
+    positions = rendi_d.T.loc[weights.index.to_list(),:].iloc[:,12].sort_values( ascending = False)#vector with daily returns sorted descending base on previous day 
+    order = [rendi_d.T.loc[weights.index.to_list(),:].index.get_loc(positions.index[i]) for i in range(len(positions))]#list with index of securities based on daily returns 
+    n_weights = weights.sort_index().iloc[:,0].to_numpy()/100 # vector with portfolio weights
+    for posi in order:
+        if (cash > 0) and (np.floor((k*n_weights[posi]/prices.iloc[13,posi]))*prices.iloc[13,posi] < cash):
+            num_titles[posi]=(np.floor((k*n_weights[posi]/prices.iloc[13,posi])))
+            cash = cash -1.00125*np.floor((k*n_weights[posi]/prices.iloc[13,posi]))*prices.iloc[13,posi]
+            com += comission(np.floor((k*n_weights[posi]/prices.iloc[13,posi])),prices.iloc[13,posi])
+        else: # case were there its no cash to cover all the positions 
+            num_titles[posi]=(np.floor((0.99875*cash/prices.iloc[13,posi])))
+            cash = cash -1.00125*np.floor((0.99875*cash/prices.iloc[13,posi]))*prices.iloc[13,posi]
+            com += comission(np.floor((0.99875*cash/prices.iloc[13,posi])),prices.iloc[13,posi])
+    
+    ######## Calculations for the new portfolio weights
+    returns = np.log(prices/prices.shift(1)).dropna() # dataframe with montly returns to determine the securitie to hold, seld or buy 
+    wei = [num_titles]# list with positions 
+    titles = [num_titles.sum()] # list with the total number of securities buy it per month
+    commi = [com] # list with the total comission per month
+    for i in range(12,len(returns)-1):
+            sales = returns.columns[returns.iloc[i,:]< -1*0.05]# securities that must be sold 
+            index_sales = [returns.columns.get_loc(stock) for stock in sales]# index of securities to sold
+            new_weights = np.zeros(len(n_weights))
+            for j in index_sales:
+                new_weights[j] = -np.floor(num_titles[j]*0.025)
+                cash +=  np.floor(num_titles[j]*0.025)*prices.iloc[i+2,j]
+            purchase = returns.columns[returns.iloc[i,:] > 0.05] # securities that must be buy
+            index_purchase = [returns.columns.get_loc(stock) for stock in purchase]# index of securities to buy
+            positions = rendi_d.T.loc[weights.index.to_list(),:].iloc[:,i+1].sort_values( ascending = False)
+            order = [rendi_d.T.loc[weights.index.to_list(),:].index.get_loc(positions.index[ors]) for ors in range(len(positions))]
+            purchase_order = [w for w in order if w  in index_purchase]
+            nn_titles = 0#number of titles bought
+            com = 0 #payed comissions 
+            for j in purchase_order:
+                if (cash > 0) and (np.floor(num_titles[j]*0.025)*prices.iloc[i+2,j] < cash):
+                      new_weights[j] = np.floor(num_titles[j]*0.025)
+                      nn_titles += np.floor(num_titles[j]*0.025)
+                      cash += -np.floor(num_titles[j]*0.025)*prices.iloc[i+2,j]-comission(np.floor(num_titles[j]*0.025),prices.iloc[i+2,j])
+                      com += comission(np.floor(num_titles[j]*0.025),prices.iloc[i+2,j])
+                else:
+                      new_weights[j] = np.floor(cash/prices.iloc[i+2,j])
+                      nn_titles += np.floor(cash/prices.iloc[i+2,j])
+                      cash += -np.floor(cash/prices.iloc[i+2,j])*prices.iloc[i+2,j]-comission(np.floor(cash/prices.iloc[i+2,j]),prices.iloc[i+2,j])
+                      com += comission(np.floor(cash/prices.iloc[i+2,j]),prices.iloc[i+2,j])
+            titles.append(nn_titles)
+            commi.append(com)#month commisions 
+            num_titles = num_titles + new_weights#new positions
+            wei.append(num_titles)
+    out = pd.DataFrame(index = prices.index[13:], data = np.multiply(np.array(wei),np.array(prices[13:])).sum(axis=1), columns = ['Capital'])#dataframe with portfolio's value
+    df_titulos = pd.DataFrame(index = prices.index[13:],data={'titulos_comprados':titles,'comision':commi})#dataframe with commisions and number of securities
+    df_titulos['titulos_totales'] = df_titulos['titulos_comprados'].cumsum()
+    df_titulos['comision_acum'] = df_titulos['comision'].cumsum()
+    return out, df_titulos
 
 
+#%%
+prices_act = data_mensual.loc[:,data_mensual.columns.isin(pesos_emv.index.to_list())]
+inv_activaSol = inv_active(prices_act,pesos_emv,closes_rend_dates,k)
+#%%
+def tabla_rend(data:"dataframe with capital"):
+    data['rend'] =data.Capital.pct_change().fillna(0).round(6)
+    data['rend_acum']= 100*((data.rend+1).cumprod()-1).round(6)
+    data['rend'] = 100*data.rend
+    return data
 
 
+tabla_rend_activa = tabla_rend(inv_activaSol[0])
 
-
-
-
-
-
+df_titulos = inv_activaSol[1]
 
 
