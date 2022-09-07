@@ -70,53 +70,57 @@ def port_eficiente(data:'data mensual',ind: "list of index"):
                    constraints=cons)
     w_emv = emv.x
     df_pesos = pd.DataFrame(index =ind, columns = ['Peso %'], data = w_emv*100)
-    df_pesos_emv = df_pesos.loc[df_pesos['Peso %']>0,:]
-    return df_pesos_emv
-
+    return df_pesos
 #%%
-def inv_active(prices:"dataframe with prices", weights:"vector with weights",rendi_d:"dataframe with daily returns", k:"initial amount of money"):
+def inv_active1(prices:'precios (solo del periodo de inversion)', weights:"vector with weights",rendi_d:"dataframe with daily returns", k:"initial amount of money"):
     """
-    Function that calculates the pasive investment, take 4 inputs and returns a table with the result of the investment
+    Esta funcion regresara las condiciones iniciales del portafolio eficiente
     """
-    ##### calculations of the initial positions
-    cash = k # cash to use in purchases
-    com = 0 # commision quantity
-    comission = lambda titles,price: titles*price*0.00125
+    cash = k
+    com = 0 # comisiones acumuladas
+    p_com = 0.00125 # porcentaje de la comision
+    comission = lambda titles,price: titles*price*p_com
     num_titles = np.zeros(len(weights)) #inicializar vector de titulos
-    positions = rendi_d.T.loc[weights.index.to_list(),:].iloc[:,12].sort_values( ascending = False)#vector with daily returns sorted descending base on previous day 
-    order = [rendi_d.T.loc[weights.index.to_list(),:].index.get_loc(positions.index[i]) for i in range(len(positions))]#list with index of securities based on daily returns 
-    n_weights = weights.sort_index().iloc[:,0].to_numpy()/100 # vector with portfolio weights
-    for posi in order:
-        if (cash > 0) and (np.floor((k*n_weights[posi]/prices.iloc[13,posi]))*prices.iloc[13,posi] < cash):
-            num_titles[posi]=(np.floor((k*n_weights[posi]/prices.iloc[13,posi])))
-            cash = cash -1.00125*np.floor((k*n_weights[posi]/prices.iloc[13,posi]))*prices.iloc[13,posi]
-            com += comission(np.floor((k*n_weights[posi]/prices.iloc[13,posi])),prices.iloc[13,posi])
+    positions = rendi_d.T.loc[weights.index.to_list(),:].iloc[:,13].sort_values( ascending = False) # rendimientos diarios
+    order = [rendi_d.T.loc[weights.index.to_list(),:].index.get_loc(positions.index[i]) for i in range(len(positions))] # titulos segun los rendimientos diarios  
+    n_weights = weights.sort_index().iloc[:,0].to_numpy()/100 # pesos del portafolio
+    for i in order:
+        if (cash > 0) and (np.floor((k*n_weights[i]/prices[i]))*prices[i] < cash):
+            num_titles[i]=(np.floor((k*n_weights[i]/prices[i])))
+            cash = cash+(-1-p_com)*np.floor((k*n_weights[i]/prices[i]))*prices[i]
+            com += comission(np.floor((k*n_weights[i]/prices[i])),prices[i])
         else: # case were there its no cash to cover all the positions 
-            num_titles[posi]=(np.floor((0.99875*cash/prices.iloc[13,posi])))
-            cash = cash -1.00125*np.floor((0.99875*cash/prices.iloc[13,posi]))*prices.iloc[13,posi]
-            com += comission(np.floor((0.99875*cash/prices.iloc[13,posi])),prices.iloc[13,posi])
+            num_titles[i]=(np.floor(((1-p_com)*cash/prices[i])))
+            cash = cash+(-1-p_com)*np.floor(((1-p_com)*cash/prices[i]))*prices[i]
+            com += comission(np.floor(((1-p_com)*cash/prices[i])),prices[i])
+    return num_titles, com, n_weights, cash
+
+#%% REBALANCEO
+def inv_active2(prices:'precios mensuales', num_titles:'titulos iniciales por accion', com:'comision despues del primer movimiento', n_weights:'pesos eficientes iniciales ', cash:'efectivo restante', weights:'pesos emv', rendi_d:''):
     
     ######## Calculations for the new portfolio weights
     returns = np.log(prices/prices.shift(1)).dropna() # dataframe with montly returns to determine the securitie to hold, seld or buy 
     wei = [num_titles]# list with positions 
     titles = [num_titles.sum()] # list with the total number of securities buy it per month
+    p_com = 0.00125 # porcentaje de la comision
+    comission = lambda titles,price: titles*price*p_com
     commi = [com] # list with the total comission per month
     for i in range(12,len(returns)-1):
-            sales = returns.columns[returns.iloc[i,:]< -1*0.05]# securities that must be sold 
-            index_sales = [returns.columns.get_loc(stock) for stock in sales]# index of securities to sold
+            sales = returns.columns[returns.iloc[i,:]< -0.05] # si el precio bajo mas del 5% se venden
+            tickers_venta = [returns.columns.get_loc(stock) for stock in sales] # tickers de las acciones a vender
             new_weights = np.zeros(len(n_weights))
-            for j in index_sales:
-                new_weights[j] = -np.floor(num_titles[j]*0.025)
+            for j in tickers_venta:
+                new_weights[j] = -np.floor(num_titles[j]*0.025) # disminuir la posicion en 2.5%
                 cash +=  np.floor(num_titles[j]*0.025)*prices.iloc[i+2,j]
-            purchase = returns.columns[returns.iloc[i,:] > 0.05] # securities that must be buy
-            index_purchase = [returns.columns.get_loc(stock) for stock in purchase]# index of securities to buy
+            purchase = returns.columns[returns.iloc[i,:] > 0.05] # si el precio incrementa en mas del 5%, se compran
+            index_purchase = [returns.columns.get_loc(stock) for stock in purchase]# acciones a comprar
             positions = rendi_d.T.loc[weights.index.to_list(),:].iloc[:,i+1].sort_values( ascending = False)
             order = [rendi_d.T.loc[weights.index.to_list(),:].index.get_loc(positions.index[ors]) for ors in range(len(positions))]
             purchase_order = [w for w in order if w  in index_purchase]
             nn_titles = 0#number of titles bought
             com = 0 #payed comissions 
             for j in purchase_order:
-                if (cash > 0) and (np.floor(num_titles[j]*0.025)*prices.iloc[i+2,j] < cash):
+                if (cash > 0) and (np.floor(num_titles[j]*0.025)*prices.iloc[i+2,j] < cash): # aumentar la posicion en 2.5% (si es que tengo el suficiente dinero)
                       new_weights[j] = np.floor(num_titles[j]*0.025)
                       nn_titles += np.floor(num_titles[j]*0.025)
                       cash += -np.floor(num_titles[j]*0.025)*prices.iloc[i+2,j]-comission(np.floor(num_titles[j]*0.025),prices.iloc[i+2,j])
@@ -127,22 +131,27 @@ def inv_active(prices:"dataframe with prices", weights:"vector with weights",ren
                       cash += -np.floor(cash/prices.iloc[i+2,j])*prices.iloc[i+2,j]-comission(np.floor(cash/prices.iloc[i+2,j]),prices.iloc[i+2,j])
                       com += comission(np.floor(cash/prices.iloc[i+2,j]),prices.iloc[i+2,j])
             titles.append(nn_titles)
-            commi.append(com)#month commisions 
-            num_titles = num_titles + new_weights#new positions
+            commi.append(com) #comisiones por mes 
+            num_titles = num_titles + new_weights #new positions
             wei.append(num_titles)
     out = pd.DataFrame(index = prices.index[13:], data = np.multiply(np.array(wei),np.array(prices[13:])).sum(axis=1), columns = ['Capital'])#dataframe with portfolio's value
-    df_titulos = pd.DataFrame(index = prices.index[13:],data={'titulos_comprados':titles,'comision':commi})#dataframe with commisions and number of securities
+    return out, titles, commi
+#%% Data Frames
+def rend_activa(capital:'capital por mes(df)'):
+    '''
+    Esta función completa el df realizado en la función inv_activa, con rendimientos
+    simples y acumulados.
+    '''
+    capital['rend'] = capital.pct_change().fillna(0).round(4)
+    capital['rend_acum'] = 100*((capital.rend+1).cumprod()-1).round(4)
+    capital['rend'] = 100*capital.rend
+    return capital
+
+def df_titulos(prices:'', titles:'', comission:''):
+    df_titulos = pd.DataFrame(index = prices.index[13:],data={'titulos_comprados':titles,'comision':comission})#dataframe with commisions and number of securities
     df_titulos['titulos_totales'] = df_titulos['titulos_comprados'].cumsum()
     df_titulos['comision_acum'] = df_titulos['comision'].cumsum()
-    return out, df_titulos
-
-#%%
-def tabla_rend(data:"dataframe with capital"):
-    data['rend'] =data.Capital.pct_change().fillna(0).round(6)
-    data['rend_acum']= 100*((data.rend+1).cumprod()-1).round(6)
-    data['rend'] = 100*data.rend
-    return data
-
+    return df_titulos
 
 
 
