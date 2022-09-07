@@ -5,16 +5,23 @@ Created on Mon Sep  5 14:36:46 2022
 
 @author: charlotte
 """
-import plotly.express as px
-from plotly.subplots import make_subplots
-import plotly.graph_objects as go
+
+import matplotlib.pyplot as plt
 import data as dt
+import main as mn
 
-def returns_plot(table_returns):
-    fig = px.line(table_returns.capital, title = "Amount in portfolio")
-    fig.show()
-    return fig
+#%% DATA
 
-#rend_men_p = dt.rend_closes.pct_change().dropna()
 
-#a = dt.rend_closes
+
+#%% PASIVA
+plt.style.use('fivethirtyeight')
+plt.ylabel('Capital')
+plot_cap_pas = mn.cap_pasiva.iloc[:,0].plot(figsize=(10,8))
+
+#%% ACTIVA
+plt.style.use('fivethirtyeight')
+cap_act = mn.test_active2[0]
+plt.ylabel('Capital')
+plot_cap_act = cap_act.iloc[:,0].plot(figsize=(10,8))
+

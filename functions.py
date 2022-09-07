@@ -77,7 +77,7 @@ def inv_active1(prices:'precios (solo del periodo de inversion)', weights:"vecto
     Esta funcion regresara las condiciones iniciales del portafolio eficiente
     """
     cash = k
-    com = 0 # comisiones acumuladas
+    com_acum = 0 # comisiones acumuladas
     p_com = 0.00125 # porcentaje de la comision
     comission = lambda titles,price: titles*price*p_com
     num_titles = np.zeros(len(weights)) #inicializar vector de titulos
@@ -88,23 +88,25 @@ def inv_active1(prices:'precios (solo del periodo de inversion)', weights:"vecto
         if (cash > 0) and (np.floor((k*n_weights[i]/prices[i]))*prices[i] < cash):
             num_titles[i]=(np.floor((k*n_weights[i]/prices[i])))
             cash = cash+(-1-p_com)*np.floor((k*n_weights[i]/prices[i]))*prices[i]
-            com += comission(np.floor((k*n_weights[i]/prices[i])),prices[i])
+            com_acum += comission(np.floor((k*n_weights[i]/prices[i])),prices[i])
         else: # case were there its no cash to cover all the positions 
             num_titles[i]=(np.floor(((1-p_com)*cash/prices[i])))
             cash = cash+(-1-p_com)*np.floor(((1-p_com)*cash/prices[i]))*prices[i]
-            com += comission(np.floor(((1-p_com)*cash/prices[i])),prices[i])
-    return num_titles, com, n_weights, cash
+            com_acum += comission(np.floor(((1-p_com)*cash/prices[i])),prices[i])
+    return num_titles, com_acum, n_weights, cash
 
 #%% REBALANCEO
-def inv_active2(prices:'precios mensuales', num_titles:'titulos iniciales por accion', com:'comision despues del primer movimiento', n_weights:'pesos eficientes iniciales ', cash:'efectivo restante', weights:'pesos emv', rendi_d:''):
-    
-    ######## Calculations for the new portfolio weights
+def inv_active2(prices:'precios mensuales', num_titles:'titulos iniciales por accion', com_acum:'comision despues del primer movimiento', n_weights:'pesos eficientes iniciales ', cash:'efectivo restante', weights:'pesos emv', rendi_d:''):
+    '''
+    Esta funcion lleva a cabo el rebalanceo del protafolio a traves de los 18 periodos restantes y
+    devuelve el capital, los titulos por adquirir y las comisiones por mes
+    '''
     returns = np.log(prices/prices.shift(1)).dropna() # dataframe with montly returns to determine the securitie to hold, seld or buy 
     wei = [num_titles]# list with positions 
     titles = [num_titles.sum()] # list with the total number of securities buy it per month
     p_com = 0.00125 # porcentaje de la comision
     comission = lambda titles,price: titles*price*p_com
-    commi = [com] # list with the total comission per month
+    com_total = [com_acum] # list with the total comission per month
     for i in range(12,len(returns)-1):
             sales = returns.columns[returns.iloc[i,:]< -0.05] # si el precio bajo mas del 5% se venden
             tickers_venta = [returns.columns.get_loc(stock) for stock in sales] # tickers de las acciones a vender
@@ -131,11 +133,11 @@ def inv_active2(prices:'precios mensuales', num_titles:'titulos iniciales por ac
                       cash += -np.floor(cash/prices.iloc[i+2,j])*prices.iloc[i+2,j]-comission(np.floor(cash/prices.iloc[i+2,j]),prices.iloc[i+2,j])
                       com += comission(np.floor(cash/prices.iloc[i+2,j]),prices.iloc[i+2,j])
             titles.append(nn_titles)
-            commi.append(com) #comisiones por mes 
+            com_total.append(com) #comisiones por mes 
             num_titles = num_titles + new_weights #new positions
             wei.append(num_titles)
-    out = pd.DataFrame(index = prices.index[13:], data = np.multiply(np.array(wei),np.array(prices[13:])).sum(axis=1), columns = ['Capital'])#dataframe with portfolio's value
-    return out, titles, commi
+    cap = pd.DataFrame(index = prices.index[13:], data = np.multiply(np.array(wei),np.array(prices[13:])).sum(axis=1), columns = ['Capital'])
+    return cap, titles, com_total
 #%% Data Frames
 def rend_activa(capital:'capital por mes(df)'):
     '''
@@ -147,14 +149,31 @@ def rend_activa(capital:'capital por mes(df)'):
     capital['rend'] = 100*capital.rend
     return capital
 
-def df_titulos(prices:'', titles:'', comission:''):
+def operaciones(prices:'', titles:'', comission:''):
+    '''
+    Esta funcion devuelve el historico de operaciones de la inversion activa
+    '''
     df_titulos = pd.DataFrame(index = prices.index[13:],data={'titulos_comprados':titles,'comision':comission})#dataframe with commisions and number of securities
     df_titulos['titulos_totales'] = df_titulos['titulos_comprados'].cumsum()
     df_titulos['comision_acum'] = df_titulos['comision'].cumsum()
     return df_titulos
 
-
-
+def medidas(active: "vector with rend active", pasive:"vector with rend pasive"):
+    act1 = active.iloc[:,1]
+    pas1 = pasive.iloc[:,1]
+    act_acum = active.iloc[:,2]
+    pas_acum = pasive.iloc[:,2]
+    sharpe_act = act1.mean()/act1.std()
+    sharpe_pas = pas1.mean()/pas1.std()
+    prom_act = act1.mean()
+    prom_pas = pas1.mean()
+    prom_act_c = act_acum[-1]
+    prom_pas_c = pas_acum[-1]
+    sal = pd.DataFrame({'medida':['rend_m','rend_c','sharpe'],
+                        'descripción':['Rendimiento Promedio Mensual','Rendimiento mensual acumulado','Sharpe Ratio'],
+                        'inv_activa':[prom_act,prom_act_c,sharpe_act],
+                        'inv_pasiva':[prom_pas,prom_pas_c,sharpe_pas]})
+    return sal
 
 
 
