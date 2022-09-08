@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import data as dt
 import main as mn
 
+'''
 #%% DATA
 plt.plot(dt.data_mensual)
 plt.show()
@@ -34,3 +35,4 @@ plt.show()
 fig, ax = plt.subplots()
 ax.pie(mn.pesos_emv)
 plt.show()
+'''

@@ -79,9 +79,9 @@ data_p = data['Close'].dropna(axis=0)
 data_act_d = yf.download(tickers = Tickers, start = start, end= end, interval='1d')
 data_act_closes = data_act_d['Close'].dropna(axis=0)
 #%% asignar fechas
-docs = os.listdir(os.getcwd()+"/files")
+files = os.listdir(os.getcwd()+"/files")
 
-dates = [x[8:12] + "-"+ x[12:14] + "-" + x[14:16] for x in docs]
+dates = [x[8:12] + "-"+ x[12:14] + "-" + x[14:16] for x in files]
 
 dates.sort()
 #%% se cambio la fecha manualmente de 2022-07-29 a 2022-07-28
@@ -91,6 +91,7 @@ data_mensual = data_p.loc[dates,:]
 # rendimientos
 rend_daily = data_p.pct_change().dropna()
 rend_mensual = rend_daily[np.roll(rend_daily.index.isin(dates),-1)]
+returns_month = np.log(data_mensual/data_mensual.shift(1)).dropna()
 
 #%% Constantes
 k = 1000000 #capital de 1 millon

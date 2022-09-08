@@ -72,7 +72,7 @@ def port_eficiente(data:'data mensual',ind: "list of index"):
     df_pesos = pd.DataFrame(index =ind, columns = ['Peso %'], data = w_emv*100)
     return df_pesos
 #%%
-def inv_active1(prices:'precios (solo del periodo de inversion)', weights:"vector with weights",rendi_d:"dataframe with daily returns", k:"initial amount of money"):
+def inv_active1(prices:'precios (solo del periodo de inversion)', weights: 'pesos',rend: 'rendimientos', k:'capital'):
     """
     Esta funcion regresara las condiciones iniciales del portafolio eficiente
     """
@@ -81,63 +81,62 @@ def inv_active1(prices:'precios (solo del periodo de inversion)', weights:"vecto
     p_com = 0.00125 # porcentaje de la comision
     comission = lambda titles,price: titles*price*p_com
     num_titles = np.zeros(len(weights)) #inicializar vector de titulos
-    positions = rendi_d.T.loc[weights.index.to_list(),:].iloc[:,13].sort_values( ascending = False) # rendimientos diarios
-    order = [rendi_d.T.loc[weights.index.to_list(),:].index.get_loc(positions.index[i]) for i in range(len(positions))] # titulos segun los rendimientos diarios  
-    n_weights = weights.sort_index().iloc[:,0].to_numpy()/100 # pesos del portafolio
+    positions = rend.T.loc[weights.index.to_list(),:].iloc[:,13].sort_values( ascending = False) # rendimientos diarios
+    order = [rend.T.loc[weights.index.to_list(),:].index.get_loc(positions.index[i]) for i in range(len(positions))] # titulos segun los rendimientos diarios  
+    emv_weights = weights.sort_index().iloc[:,0].to_numpy()/100 # pesos del portafolio
     for i in order:
-        if (cash > 0) and (np.floor((k*n_weights[i]/prices[i]))*prices[i] < cash):
-            num_titles[i]=(np.floor((k*n_weights[i]/prices[i])))
-            cash = cash+(-1-p_com)*np.floor((k*n_weights[i]/prices[i]))*prices[i]
-            com_acum += comission(np.floor((k*n_weights[i]/prices[i])),prices[i])
-        else: # case were there its no cash to cover all the positions 
+        if (cash > 0) and (np.floor((k*emv_weights[i]/prices[i]))*prices[i] < cash):
+            num_titles[i]=(np.floor((k*emv_weights[i]/prices[i])))
+            cash = cash+(-1-p_com)*np.floor((k*emv_weights[i]/prices[i]))*prices[i]
+            com_acum += comission(np.floor((k*emv_weights[i]/prices[i])),prices[i])
+        else: 
             num_titles[i]=(np.floor(((1-p_com)*cash/prices[i])))
             cash = cash+(-1-p_com)*np.floor(((1-p_com)*cash/prices[i]))*prices[i]
             com_acum += comission(np.floor(((1-p_com)*cash/prices[i])),prices[i])
-    return num_titles, com_acum, n_weights, cash
+    return num_titles, com_acum, emv_weights, cash
 
 #%% REBALANCEO
-def inv_active2(prices:'precios mensuales', num_titles:'titulos iniciales por accion', com_acum:'comision despues del primer movimiento', n_weights:'pesos eficientes iniciales ', cash:'efectivo restante', weights:'pesos emv', rendi_d:''):
+def inv_active2(returns: 'retornos mensuales', prices:'precios mensuales', num_titles:'titulos iniciales por accion', com_acum:'comision despues del primer movimiento', emv_weights:'pesos eficientes iniciales ', cash:'efectivo restante', weights:'pesos emv', rend: 'rendimientos mensuales'):
     '''
     Esta funcion lleva a cabo el rebalanceo del protafolio a traves de los 18 periodos restantes y
     devuelve el capital, los titulos por adquirir y las comisiones por mes
     '''
-    returns = np.log(prices/prices.shift(1)).dropna() # dataframe with montly returns to determine the securitie to hold, seld or buy 
-    wei = [num_titles]# list with positions 
-    titles = [num_titles.sum()] # list with the total number of securities buy it per month
     p_com = 0.00125 # porcentaje de la comision
     comission = lambda titles,price: titles*price*p_com
-    com_total = [com_acum] # list with the total comission per month
+    com_total = [com_acum] # comision acumulada por mes
+    pesos_in = [num_titles] # posiciones iniciales a comprar
+    titulos = [num_titles.sum()] # posiciones totales
     for i in range(12,len(returns)-1):
-            sales = returns.columns[returns.iloc[i,:]< -0.05] # si el precio bajo mas del 5% se venden
-            tickers_venta = [returns.columns.get_loc(stock) for stock in sales] # tickers de las acciones a vender
-            new_weights = np.zeros(len(n_weights))
+            venta = returns.columns[returns.iloc[i,:]< -0.05] # si el precio bajo mas del 5% se venden
+            tickers_venta = [returns.columns.get_loc(stock) for stock in venta] # tickers de las acciones a vender
+            new_weights = np.zeros(len(emv_weights))
             for j in tickers_venta:
                 new_weights[j] = -np.floor(num_titles[j]*0.025) # disminuir la posicion en 2.5%
                 cash +=  np.floor(num_titles[j]*0.025)*prices.iloc[i+2,j]
-            purchase = returns.columns[returns.iloc[i,:] > 0.05] # si el precio incrementa en mas del 5%, se compran
-            index_purchase = [returns.columns.get_loc(stock) for stock in purchase]# acciones a comprar
-            positions = rendi_d.T.loc[weights.index.to_list(),:].iloc[:,i+1].sort_values( ascending = False)
-            order = [rendi_d.T.loc[weights.index.to_list(),:].index.get_loc(positions.index[ors]) for ors in range(len(positions))]
-            purchase_order = [w for w in order if w  in index_purchase]
-            nn_titles = 0#number of titles bought
-            com = 0 #payed comissions 
+            compra = returns.columns[returns.iloc[i,:] > 0.05] # si el precio incrementa en mas del 5%, se compran
+            tickers_compra = [returns.columns.get_loc(stock) for stock in compra]# acciones a comprar
+            positions = rend.T.loc[weights.index.to_list(),:].iloc[:,i+1].sort_values( ascending = False)
+            order = [rend.T.loc[weights.index.to_list(),:].index.get_loc(positions.index[ors]) for ors in range(len(positions))]
+            purchase_order = [x for x in order if x in tickers_compra]
+            new_com = 0 # nuevas comisiones
+            new_titles = 0 # cantidad de nuevos titulos
             for j in purchase_order:
                 if (cash > 0) and (np.floor(num_titles[j]*0.025)*prices.iloc[i+2,j] < cash): # aumentar la posicion en 2.5% (si es que tengo el suficiente dinero)
                       new_weights[j] = np.floor(num_titles[j]*0.025)
-                      nn_titles += np.floor(num_titles[j]*0.025)
+                      new_titles += np.floor(num_titles[j]*0.025)
                       cash += -np.floor(num_titles[j]*0.025)*prices.iloc[i+2,j]-comission(np.floor(num_titles[j]*0.025),prices.iloc[i+2,j])
-                      com += comission(np.floor(num_titles[j]*0.025),prices.iloc[i+2,j])
+                      new_com += comission(np.floor(num_titles[j]*0.025),prices.iloc[i+2,j])
                 else:
                       new_weights[j] = np.floor(cash/prices.iloc[i+2,j])
-                      nn_titles += np.floor(cash/prices.iloc[i+2,j])
+                      new_titles += np.floor(cash/prices.iloc[i+2,j])
                       cash += -np.floor(cash/prices.iloc[i+2,j])*prices.iloc[i+2,j]-comission(np.floor(cash/prices.iloc[i+2,j]),prices.iloc[i+2,j])
-                      com += comission(np.floor(cash/prices.iloc[i+2,j]),prices.iloc[i+2,j])
-            titles.append(nn_titles)
-            com_total.append(com) #comisiones por mes 
-            num_titles = num_titles + new_weights #new positions
-            wei.append(num_titles)
-    cap = pd.DataFrame(index = prices.index[13:], data = np.multiply(np.array(wei),np.array(prices[13:])).sum(axis=1), columns = ['Capital'])
-    return cap, titles, com_total
+                      new_com += comission(np.floor(cash/prices.iloc[i+2,j]),prices.iloc[i+2,j])
+            titulos.append(new_titles)
+            com_total.append(new_com) #comisiones por mes 
+            num_titles = num_titles + new_weights 
+            pesos_in.append(num_titles)
+    cap = pd.DataFrame(index = prices.index[13:], data = np.multiply(np.array(pesos_in),np.array(prices[13:])).sum(axis=1), columns = ['Capital'])
+    return cap, titulos, com_total
 #%% Data Frames
 def rend_activa(capital:'capital por mes(df)'):
     '''
@@ -158,7 +157,7 @@ def operaciones(prices:'', titles:'', comission:''):
     df_titulos['comision_acum'] = df_titulos['comision'].cumsum()
     return df_titulos
 
-def medidas(active: "vector with rend active", pasive:"vector with rend pasive"):
+def medidas(active: 'df rendimeinto inv activa', pasive: 'df rendimiento inv pasiva'):
     act1 = active.iloc[:,1]
     pas1 = pasive.iloc[:,1]
     act_acum = active.iloc[:,2]

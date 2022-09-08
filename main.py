@@ -21,7 +21,7 @@ pesos_emv = fun.port_eficiente(dt.data_p, dt.Tickers)
 
 # Inversion activa
 test_active = fun.inv_active1(dt.data_mensual.iloc[13,],pesos_emv, dt.rend_mensual,dt.k)
-test_active2 = fun.inv_active2(dt.data_mensual,test_active[0],test_active[1],test_active[2],test_active[3],pesos_emv,dt.rend_mensual)
+test_active2 = fun.inv_active2(dt.returns_month, dt.data_mensual,test_active[0],test_active[1],test_active[2],test_active[3],pesos_emv,dt.rend_mensual)
 prices_act = dt.data_mensual.loc[:,dt.data_mensual.columns.isin(pesos_emv.index.to_list())]
 #tablas 
 df_activa = fun.rend_activa(test_active2[0])
