@@ -11,17 +11,23 @@ import data as dt
 import main as mn
 
 #%% DATA
-
-
+plt.plot(dt.data_mensual)
+plt.show()
 
 #%% PASIVA
-plt.style.use('fivethirtyeight')
-plt.ylabel('Capital')
-plot_cap_pas = mn.cap_pasiva.iloc[:,0].plot(figsize=(10,8))
 
-#%% ACTIVA
-plt.style.use('fivethirtyeight')
 cap_act = mn.test_active2[0]
+plt.plot(cap_act.iloc[:,0])
+plt.plot(mn.cap_pasiva.iloc[:,0], label ='Inv_Pasiva')
+plt.ylabel('Fechas')
 plt.ylabel('Capital')
-plot_cap_act = cap_act.iloc[:,0].plot(figsize=(10,8))
-
+plt.title("Inv Activa vs Inv Pasiva", 
+          fontdict={'family': 'serif', 
+                    'color' : 'black',
+                    'weight': 'bold',
+                    'size': 18})
+plt.grid(True)
+plt.show()
+#%% 
+plt.plot(mn.pesos_emv)
+plt.show()

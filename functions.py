@@ -169,11 +169,9 @@ def medidas(active: "vector with rend active", pasive:"vector with rend pasive")
     prom_pas = pas1.mean()
     prom_act_c = act_acum[-1]
     prom_pas_c = pas_acum[-1]
-    sal = pd.DataFrame({'medida':['rend_m','rend_c','sharpe'],
-                        'descripción':['Rendimiento Promedio Mensual','Rendimiento mensual acumulado','Sharpe Ratio'],
-                        'inv_activa':[prom_act,prom_act_c,sharpe_act],
-                        'inv_pasiva':[prom_pas,prom_pas_c,sharpe_pas]})
-    return sal
+    tab = pd.DataFrame({'medida':['rend_m','rend_c','sharpe'], 'descripcion':['Rendimiento Promedio Mensual','Rendimiento mensual acumulado','Sharpe Ratio'],
+                        'inv_activa':[prom_act,prom_act_c,sharpe_act],'inv_pasiva':[prom_pas,prom_pas_c,sharpe_pas]})
+    return tab
 
 
 

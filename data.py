@@ -94,6 +94,6 @@ rend_mensual = rend_daily[np.roll(rend_daily.index.isin(dates),-1)]
 
 #%% Constantes
 k = 1000000 #capital de 1 millon
-#CASH = "KOFL", "KOFUBL", "USD", "BSMXB","NMKA" (solo tienen ponderacion inicial "KOFUBL" y  "BSMXB")
-cash = k*weights_in2.iloc[10,1]/100+k*weights_in2.iloc[34,1]/100
+#CASH = "KOFL", "KOFUBL", "USD", "BSMXB","NMKA" (solo tienen ponderacion inicial "KOFUBL" y  "BSMXB", se elimina ademas MXN)
+cash = k*weights_in2.iloc[10,1]/100+k*weights_in2.iloc[32,1]/100+k*weights_in2.iloc[34,1]/100
 
