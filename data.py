@@ -57,10 +57,10 @@ for i in t_no:
 weights1 = weights1[(weights1.Ticker != 'KOFL') & (weights1.Ticker != 'KOFUBL') & (weights1.Ticker != 'MXN')]
 
 weights1.sort_values(by = 'Ticker',inplace=True)
-
+#%%
 # Pasar pesos de porcentajes a decimales
-#weights1.loc['Peso (%)',:] = weights1["Peso (%)"]/100
 weights1["Peso (%)"] = weights1["Peso (%)"]/ 100
+    
 pesos = weights1.iloc[:,1].to_numpy()
 
 #%% Descargar precios
@@ -97,4 +97,5 @@ returns_month = np.log(data_mensual/data_mensual.shift(1)).dropna()
 k = 1000000 #capital de 1 millon
 #CASH = "KOFL", "KOFUBL", "USD", "BSMXB","NMKA" (solo tienen ponderacion inicial "KOFUBL" y  "BSMXB", se elimina ademas MXN)
 cash = k*weights_in2.iloc[10,1]/100+k*weights_in2.iloc[32,1]/100+k*weights_in2.iloc[34,1]/100
+df_weights1p = pd.DataFrame(index=weights1.iloc[:,0], columns = ['Peso %'], data = pesos*100)
 
