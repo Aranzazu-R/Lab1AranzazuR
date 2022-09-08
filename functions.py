@@ -152,7 +152,7 @@ def operaciones(prices:'', titles:'', comission:''):
     '''
     Esta funcion devuelve el historico de operaciones de la inversion activa
     '''
-    df_titulos = pd.DataFrame(index = prices.index[13:],data={'titulos_comprados':titles,'comision':comission})#dataframe with commisions and number of securities
+    df_titulos = pd.DataFrame(index = prices.index[13:],data={'titulos_comprados':titles,'comision':comission})
     df_titulos['titulos_totales'] = df_titulos['titulos_comprados'].cumsum()
     df_titulos['comision_acum'] = df_titulos['comision'].cumsum()
     return df_titulos
