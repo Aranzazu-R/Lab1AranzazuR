@@ -55,7 +55,7 @@ def port_eficiente(data:'data mensual',ind: "list of index"):
     Sigma = S.dot(corr).dot(S)
     # 2. Eind: rendimientos esperados activos individuales
     Eind = annual_ret_summary.T.loc['Media'].values
-    rf = 0.0775
+    rf = 0.0429
     N = len(Eind) # Número de activos
     w0 = np.ones(N) / N# Dato inicial
     bnds = ((0, 1), ) * N # Cotas de las variables
